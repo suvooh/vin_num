@@ -1,0 +1,14 @@
+numpy
+pillow
+scipy
+onnxruntime
+
+[dev]
+pytest
+
+[train]
+torch
+pyyaml
+tqdm
+fonttools
+onnx

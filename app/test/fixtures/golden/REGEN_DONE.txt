@@ -1,0 +1,11 @@
+Python reference side (fork P) finished 2026-11-12. These fixtures are FINAL:
+
+  scene_golden.json       32 cases (regenerated AFTER the S2 pattern-aware slot-candidate amendment)
+  liveness_cases.json     40 decision cases (+ screen_context input / expect.screen_context)
+  liveness_retro.json     14 cases (+ gain_spread / hotspot in expect)
+  liveness_planarity.json unchanged semantics (regenerated, same verdicts)
+
+Untouched (their generators did not change): decoder_cases.json, image_*.json.
+
+scene_golden.json: recorded outs carry "raw"; expected dicts carry "screen_context"
+(per_image[i].screen_context for frames); every field dict carries "unknown_candidates".

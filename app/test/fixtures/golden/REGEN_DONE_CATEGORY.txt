@@ -1,0 +1,15 @@
+Python reference side (fork P2, vehicle category) finished 2026-11-16. These fixtures are FINAL:
+
+  category_cases.json   NEW. 91 plate-line crops (lossless PNG) with the grammar layout, the 2-means centres and the full
+                        classify_plate() result, plus 295 name_colour() cases. Reference: ml/vinplate/category.py.
+  scene_golden.json     regenerated in full (32 cases). Identical to the previous file except: every plate / VIN field dict
+                        now carries "category" (null for a VIN, or a plate with no usable crop) and the "python_ms" timings.
+                        No reading decision changed.
+  decoder_cases.json    regenerated in full. Identical except: 17 new "grammar" strings (dealer template DLR NN NNNN) and ONE
+                        read_line case, sim04_plate_clean: the dealer template adds legal DL.. prefixes to the 32-wide
+                        beam, so its n_best tail / confidence moved (0.9012 -> 0.9108); text and status unchanged.
+                        The Dart grammar must include the dealer template for this case to match.
+
+Untouched: liveness_*.json, image_*.json (their generators did not change).
+
+Rules in category.py are RECALLED from two user-supplied infographics, NOT verified against the official notifications.

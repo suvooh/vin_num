@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VIN &amp; Number Plate Reader</title>
+<style>
+  :root { --teal:#2ab6b6; --ink:#222b45; --muted:#8f9bb3; --line:#e3e7ee; --page:#edf1f7; --ok:#1e8e5a; --warn:#b26b00; --bad:#b3261e; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--page); color:#333; font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .topbar { background:#fff; border-top:2px solid var(--teal); height:56px; display:flex; align-items:center; padding:0 22px; box-shadow:0 1px 4px rgba(0,0,0,.06); color:#1c3f94; font-weight:600; font-size:20px; }
+  .topbar small { margin-left:auto; font-size:12px; font-weight:400; color:var(--muted); }
+  .page { max-width:1000px; margin:0 auto; padding:20px 16px 40px; display:grid; gap:16px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px; }
+  h2 { margin:0 0 10px; font-size:15px; color:var(--ink); }
+  #drop { border:2px dashed var(--line); border-radius:8px; padding:24px; text-align:center; color:var(--muted); cursor:pointer; }
+  #drop.over { border-color:var(--teal); background:#f2fbfb; }
+  #thumbs { display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; }
+  .thumb { width:150px; }
+  .thumb .pic { position:relative; height:100px; border-radius:6px; overflow:hidden; border:1px solid var(--line); }
+  .thumb img { width:100%; height:100%; object-fit:cover; }
+  .thumb button { position:absolute; top:2px; right:2px; border:0; border-radius:50%; width:20px; height:20px; background:rgba(0,0,0,.6); color:#fff; cursor:pointer; line-height:1; }
+  .thumb select { width:100%; margin-top:4px; font:inherit; padding:3px; }
+  .opts { display:flex; flex-wrap:wrap; gap:18px; margin-top:12px; color:#555; }
+  .row { display:flex; gap:10px; align-items:center; margin-top:12px; }
+  .primary { background:var(--teal); color:#fff; border:0; border-radius:6px; padding:9px 20px; font:inherit; cursor:pointer; }
+  .primary:disabled { background:#b7c3cf; cursor:default; }
+  #status { color:var(--muted); }
+  .fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+  .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+  .value { font:600 24px/1.3 ui-monospace,Consolas,monospace; color:var(--ink); word-break:break-all; margin:6px 0; }
+  .value.none { color:var(--muted); font-weight:400; font-size:16px; }
+  .value .q { display:inline-block; min-width:.9em; text-align:center; color:var(--bad); background:#fdecea; border-radius:3px; }
+  .pill { display:inline-block; border-radius:10px; padding:1px 9px; font-size:12px; margin:0 6px 4px 0; background:#eef2f6; }
+  .pill.ok { background:#e3f5ec; color:var(--ok); } .pill.warn { background:#fff1db; color:var(--warn); } .pill.bad { background:#fdecea; color:var(--bad); }
+  ul.plain { margin:6px 0 0; padding-left:18px; font-size:13px; color:#555; }
+  ul.plain.tips { color:var(--warn); }
+  .alts { font:12px ui-monospace,Consolas,monospace; color:#666; margin-top:4px; }
+  .photos { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
+  .photo .frame { position:relative; }
+  .photo img { width:100%; max-height:170px; object-fit:contain; background:#f4f6fa; border-radius:6px; border:1px solid var(--line); display:block; }
+  .photo .box { position:absolute; border:2px solid var(--teal); border-radius:2px; pointer-events:none; }
+  .photo .box.vin { border-color:#7a4dd8; }
+  .photo ul { margin:6px 0 0; padding-left:16px; max-height:110px; overflow:auto; font-size:12px; color:#555; }
+  .note { font-size:12px; color:var(--muted); margin-top:8px; }
+  .err { color:var(--bad); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="topbar">VIN &amp; Number Plate Reader <small id="health">checking OCR…</small></div>
+<div class="page">
+  <div class="card">
+    <h2>1. Add photos <span style="font-weight:400;color:var(--muted)">(up to 6) and say what each one is</span></h2>
+    <div id="drop">Drop images here or click to choose<input id="file" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></div>
+    <div id="thumbs"></div>
+    <div class="opts">
+      <label><input type="checkbox" id="hsrp"> Plate is a retroreflective HSRP plate (enables the flash test)</label>
+      <label><input type="checkbox" id="needLive"> Flag for review unless liveness is confirmed</label>
+    </div>
+    <div class="note">
+      <b>Plate</b> = normal photo (first one is the reference) · <b>Plate + flash</b> = same pose with the flash on ·
+      <b>Other angle</b> = same plate from another position · <b>VIN</b> = chassis / VIN sticker · <b>Auto</b> = look for both.
+      Flash and angle photos are what let the system tell a real car from a photo of a screen.
+    </div>
+    <div class="row"><button id="go" class="primary" disabled>Read VIN &amp; plate</button><span id="status"></span></div>
+  </div>
+
+  <div id="result" hidden>
+    <div class="fields">
+      <div class="card"><div class="label">Vehicle Identification Number</div><div id="vin"></div></div>
+      <div class="card"><div class="label">Registration plate</div><div id="plate"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h2>Authenticity &amp; liveness</h2><div id="auth"></div></div>
+    <div class="card" style="margin-top:16px"><h2>Photos: where it was read, and all text found</h2><div id="photos" class="photos"></div></div>
+  </div>
+</div>
+<script>
+const MAX = 6, API = location.port === "8002" ? "" : "http://127.0.0.1:8002";
+const ROLES = [["auto", "Auto"], ["plate", "Plate"], ["plate_flash", "Plate + flash"], ["angle", "Other angle"], ["vin", "VIN"]];
+const $ = id => document.getElementById(id);
+let files = [];   // [{file, role}]
+
+fetch(API + "/api/health").then(r => r.json()).then(h => {
+  const o = h.ocr || {};
+  $("health").textContent = h.ok ? "offline engine ready" + (o.recapture_model ? " · screen-recapture model on" : " · recapture model missing") : "OCR unavailable: " + (o.error || "unknown");
+}).catch(() => { $("health").textContent = "backend not reachable"; });
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function pill(text, cls) { return el("span", "pill " + (cls || ""), text); }
+function list(items, cls) { const u = el("ul", "plain " + (cls || "")); items.forEach(t => u.append(el("li", "", t))); return u; }
+
+function render() {
+  $("thumbs").innerHTML = "";
+  files.forEach((it, i) => {
+    const d = el("div", "thumb"), pic = el("div", "pic"), img = el("img");
+    img.src = URL.createObjectURL(it.file);
+    const b = el("button", "", "×"); b.onclick = () => { files.splice(i, 1); render(); };
+    const sel = el("select");
+    ROLES.forEach(([v, t]) => { const o = el("option", "", t); o.value = v; if (v === it.role) o.selected = true; sel.append(o); });
+    sel.onchange = () => { it.role = sel.value; };
+    pic.append(img, b); d.append(pic, sel); $("thumbs").append(d);
+  });
+  $("go").disabled = !files.length;
+}
+function add(list_) { [...list_].filter(f => f.type.startsWith("image/")).forEach(f => files.length < MAX && files.push({ file: f, role: "auto" })); render(); }
+$("drop").onclick = () => $("file").click();
+$("file").onchange = e => { add(e.target.files); e.target.value = ""; };
+$("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("over"); };
+$("drop").ondragleave = () => $("drop").classList.remove("over");
+$("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("over"); add(e.dataTransfer.files); };
+
+// A reading is shown as the decoder's MASKED text: every character the pixels did not support is a
+// red "?" - never the decoder's guess presented as if it were read.
+function maskedEl(text) {
+  const v = el("div", "value");
+  [...text].forEach(c => v.append(c === "?" ? el("span", "q", "?") : document.createTextNode(c)));
+  return v;
+}
+const STATUS = { accept: ["Read with confidence", "ok"], review: ["Needs review", "warn"], reject: ["Unreadable", "bad"] };
+
+function showField(box, f, vin) {
+  box.innerHTML = "";
+  if (!f) { box.append(el("div", "value none", "not found")); return; }
+  const [label, cls] = STATUS[f.status] || ["", ""];
+  box.append(maskedEl(f.status === "accept" ? (vin ? f.value : (f.display || f.value)) : f.masked));
+  const meta = el("div");
+  meta.append(pill(label, cls), pill("confidence " + Math.round(f.confidence * 100) + "%", f.confidence >= .8 ? "ok" : "warn"),
+              pill("photo " + (f.image + 1)));
+  if (f.views > 1) meta.append(pill(f.views + " views fused"));
+  if (f.rows > 1) meta.append(pill(f.rows + " rows"));
+  if (vin && f.check_digit_ok === true) meta.append(pill("check digit valid", "ok"));
+  if (vin && f.check_digit_ok === false) meta.append(pill("check digit failed (many Indian VINs have none)", "warn"));
+  if (f.parsed && f.parsed.state_name) meta.append(pill(f.parsed.state_name));
+  if (f.parsed && f.parsed.known_maker) meta.append(pill(f.parsed.known_maker));
+  if (f.inferred && f.inferred.length) meta.append(pill(f.inferred.length + " weak character(s)", "warn"));
+  box.append(meta);
+  if (f.reasons && f.reasons.length) box.append(list(f.reasons));
+  const guide = ((f.quality || {}).guidance) || [];
+  if (guide.length) box.append(list(guide, "tips"));
+  const alts = (f.alternatives || []).filter(a => a.text !== f.value).slice(0, 3);
+  if (alts.length) box.append(el("div", "alts", "other readings: " + alts.map(a => a.text + " (" + Math.round(a.p * 100) + "%)").join(", ")));
+}
+
+function showAuth(a, conflicts) {
+  const box = $("auth"); box.innerHTML = "";
+  const live = { confirmed: ["Liveness confirmed", "ok"], suspected_spoof: ["Suspected screen / print", "bad"], not_established: ["Liveness NOT established", "warn"] }[a.liveness];
+  const st = { no_flags: ["No red flags", "ok"], review: ["Review", "warn"], reject: ["Reject", "bad"] }[a.status];
+  const meta = el("div");
+  meta.append(pill(live[0], live[1]), pill(st[0], st[1]), pill("assurance: " + a.assurance));
+  if (a.pa_score) meta.append(pill("presentation-attack score " + a.pa_score, a.pa_score >= 1 ? "bad" : "warn"));
+  box.append(meta);
+  if (a.positive && a.positive.length) box.append(list(a.positive.map(p => "evidence for a live scene: " + p.replace(/_/g, " "))));
+  if (a.reasons.length) box.append(list(a.reasons));
+  (conflicts || []).forEach(c => box.append(list(["photo " + (c.image + 1) + " read " + c.masked + ", which disagrees with " + c.main])));
+  if (a.not_run.length) box.append(el("div", "note", "Not checked: " + a.not_run.join(", ") + ". \"No red flags\" is not proof that the photo is genuine; flash + angle photos add physical evidence."));
+  box.append(el("div", "note", "Thresholds are provisional and have not been validated on real devices."));
+}
+
+$("go").onclick = async () => {
+  const fd = new FormData(); files.forEach(it => fd.append("files", it.file));
+  fd.append("roles", files.map(it => it.role).join(","));
+  fd.append("hsrp", $("hsrp").checked); fd.append("require_liveness", $("needLive").checked);
+  $("go").disabled = true; $("status").className = ""; $("status").textContent = "Reading… (a few seconds per photo)";
+  try {
+    const r = await fetch(API + "/api/extract", { method: "POST", body: fd });
+    const body = await r.json();
+    if (!r.ok) throw new Error(typeof body.detail === "string" ? body.detail : "request failed");
+    showField($("vin"), body.fields.vin, true);
+    showField($("plate"), body.fields.plate, false);
+    showAuth(body.authenticity, body.conflicts);
+    $("photos").innerHTML = "";
+    body.images.forEach(im => {
+      const d = el("div", "photo"), fr = el("div", "frame"), img = el("img");
+      img.src = URL.createObjectURL(files[im.index].file); fr.append(img);
+      [["plate", body.fields.plate], ["vin", body.fields.vin]].forEach(([k, f]) => {
+        if (f && f.image === im.index) {
+          const b = el("div", "box " + k), [x0, y0, x1, y1] = f.box;
+          Object.assign(b.style, { left: 100 * x0 / im.size[0] + "%", top: 100 * y0 / im.size[1] + "%", width: 100 * (x1 - x0) / im.size[0] + "%", height: 100 * (y1 - y0) / im.size[1] + "%" });
+          fr.append(b);
+        }
+      });
+      d.append(fr, el("div", "label", "photo " + (im.index + 1) + " · " + im.role));
+      const ul = el("ul"); const lines = body.lines.filter(l => l.image === im.index && l.text);
+      (lines.length ? lines : [{ text: "(no text found)" }]).forEach(l => ul.append(el("li", "", l.text)));
+      d.append(ul); $("photos").append(d);
+    });
+    $("result").hidden = false; $("status").textContent = "Done in " + Math.round((body.timings_ms.detect + body.timings_ms.recognise + body.timings_ms.decode) / 100) / 10 + " s (models)";
+  } catch (e) { $("status").className = "err"; $("status").textContent = e.message; }
+  $("go").disabled = !files.length;
+};
+</script>
+</body>
+</html>

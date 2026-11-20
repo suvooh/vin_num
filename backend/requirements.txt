@@ -1,0 +1,12 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+python-multipart>=0.0.20,<1
+numpy>=2.0,<3
+Pillow>=11,<14
+# Fully offline OCR: PP-OCR (PaddleOCR) ONNX models on ONNX Runtime, run by the vinplate package.
+# (rapidocr_onnxruntime is no longer used: it needs OpenCV, which has no win-arm64 wheel, and it
+# hid the recogniser's probabilities that the damage-aware decoder needs.)
+scipy>=1.11
+onnxruntime>=1.18
+# the shared plate / VIN reading + authenticity package (editable: models are found in this repo)
+-e ../ml

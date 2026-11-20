@@ -1,0 +1,405 @@
+// The original research harness: on-device screen/print + flash checks, tamper model, and data
+// collection. Kept as an advanced tool behind Settings > Lab tools; the user-facing flow is in lib/ui.
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+
+import '../crash.dart';
+import '../id_reader.dart';
+import '../native.dart';
+import '../pipeline.dart';
+
+List<CameraDescription> _cameras = [];
+
+/// Shows the previous run's crash report (if any) with a copy button. Used at app start.
+Future<void> showPendingCrashReport(BuildContext context) async {
+  final report = await CrashLog.pendingReport();
+  if (report == null || !context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      icon: const Icon(Icons.bug_report, color: Colors.red),
+      title: const Text('The app closed unexpectedly last time'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(child: SelectableText(report, style: const TextStyle(fontFamily: 'monospace', fontSize: 11))),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: report));
+            if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
+          },
+          child: const Text('Copy'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            await CrashLog.clear();
+            if (ctx.mounted) Navigator.of(ctx).pop();
+          },
+          child: const Text('Dismiss'),
+        ),
+      ],
+    ),
+  );
+}
+
+class LabHome extends StatefulWidget {
+  const LabHome({super.key});
+  @override
+  State<LabHome> createState() => _LabHomeState();
+}
+
+class _LabHomeState extends State<LabHome> {
+  CameraController? _cam;
+  String? _camError;
+  Backend backend = Backend.nnapi;
+  bool int8 = true, hsrp = true, busy = false;
+  String mode = 'plate'; // plate | vin: which identifier we are aiming at
+  String step = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    if (_cameras.isEmpty) {
+      try {
+        _cameras = await availableCameras();
+      } catch (_) {}
+    }
+    if (_cameras.isEmpty) {
+      setState(() => _camError = 'No camera available (or permission denied).');
+      return;
+    }
+    final c = CameraController(_cameras.firstWhere((d) => d.lensDirection == CameraLensDirection.back, orElse: () => _cameras.first),
+        ResolutionPreset.high, enableAudio: false);
+    try {
+      await c.initialize();
+      if (!mounted) return;
+      setState(() => _cam = c);
+    } on CameraException catch (e) {
+      setState(() => _camError = 'Camera error: ${e.code}');
+    }
+  }
+
+  @override
+  void dispose() {
+    _cam?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _liveCapture() async {
+    final c = _cam;
+    if (c == null || busy) return;
+    setState(() {
+      busy = true;
+      step = 'Hold still. Capturing flash-off frame...';
+    });
+    Uint8List? off, on;
+    try {
+      try {
+        await c.setFlashMode(FlashMode.off);
+        await c.setExposureMode(ExposureMode.locked);
+      } catch (_) {}
+      CrashLog.start('camera capture', 'flash-off frame');
+      off = await (await c.takePicture()).readAsBytes();
+      setState(() => step = 'Capturing flash-on frame...');
+      bool torch = true;
+      try {
+        await c.setFlashMode(FlashMode.torch);
+        await Future.delayed(const Duration(milliseconds: 350));
+      } catch (_) {
+        torch = false;
+      }
+      CrashLog.start('camera capture', 'flash-on frame (torch)');
+      if (torch) on = await (await c.takePicture()).readAsBytes();
+      CrashLog.done();
+      try {
+        await c.setFlashMode(FlashMode.off);
+        await c.setExposureMode(ExposureMode.auto);
+      } catch (_) {}
+      await _analyse(off, on, true);
+    } catch (e) {
+      _fail(e);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _gallery() async {
+    if (busy) return;
+    final f = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (f == null) return;
+    setState(() {
+      busy = true;
+      step = 'Analysing...';
+    });
+    try {
+      await _analyse(await f.readAsBytes(), null, false);
+    } catch (e) {
+      _fail(e);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _analyse(Uint8List off, Uint8List? on, bool live) async {
+    setState(() => step = 'Reading text and locating plate / VIN...');
+    // OCR first: it tells every other check WHERE the plate and VIN are.
+    CrashLog.start('OCR (text detector + recogniser)', 'image ${off.length ~/ 1024} KB jpeg, live=$live');
+    final id = await readIdentifiers(off);
+    CrashLog.done();
+    setState(() => step = 'Running checks on device...');
+    CrashLog.start('image checks (screen/print model, flash test, tamper model)', 'backend=${backend.name} int8=$int8 mode=$mode');
+    final r = await Pipeline.run(off: off, on: on, fromLiveCamera: live, backend: backend, hsrpExpected: hsrp && mode == 'plate', id: id, int8: int8);
+    CrashLog.done();
+    if (!mounted) return;
+    final flagged = r.decision.status == 'REJECT' || r.decision.status == 'REVIEW';
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ResultPage(r, backend, mode, flagged ? null : Future.value(id))));
+  }
+
+  void _fail(Object e) {
+    CrashLog.record(e, null, kind: 'HANDLED (shown as a snackbar)');
+    CrashLog.done();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.red.shade800, content: Text('ERROR: $e'), duration: const Duration(seconds: 8)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _cam;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Lab tools')),
+      body: Column(children: [
+        Expanded(
+          child: c == null
+              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_camError ?? 'Starting camera...')))
+              : Stack(alignment: Alignment.center, fit: StackFit.expand, children: [
+                  CameraPreview(c),
+                  // Guide box = the region treated as "the plate" by the flash test. Align the plate to it.
+                  LayoutBuilder(builder: (ctx, bc) => Center(child: Container(
+                        width: bc.maxWidth * (mode == 'vin' ? 0.8 : 0.6),
+                        height: bc.maxHeight * (mode == 'vin' ? 0.07 : 0.18),
+                        decoration: BoxDecoration(border: Border.all(color: Colors.amberAccent, width: 3), borderRadius: BorderRadius.circular(6)),
+                        alignment: Alignment.topCenter,
+                        child: Text(mode == 'vin' ? 'put the VIN line inside this box' : 'align the PLATE inside this box', style: TextStyle(color: Colors.amberAccent, fontSize: 12, backgroundColor: Colors.black54)),
+                      ))),
+                  if (busy) Container(color: Colors.black54, child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [const CircularProgressIndicator(), const SizedBox(height: 12), Text(step, style: const TextStyle(color: Colors.white))]))),
+                ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(children: [
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'plate', label: Text('Number plate'), icon: Icon(Icons.directions_car)),
+                ButtonSegment(value: 'vin', label: Text('VIN number'), icon: Icon(Icons.pin)),
+              ],
+              selected: {mode},
+              onSelectionChanged: (s) => setState(() => mode = s.first),
+            ),
+            const SizedBox(height: 6),
+            SegmentedButton<Backend>(
+              segments: const [
+                ButtonSegment(value: Backend.cpu, label: Text('CPU (XNNPACK)')),
+                ButtonSegment(value: Backend.nnapi, label: Text('GPU/NPU (NNAPI)')),
+              ],
+              selected: {backend},
+              onSelectionChanged: (s) => setState(() => backend = s.first),
+            ),
+            Row(children: [
+              Expanded(child: SwitchListTile(dense: true, title: const Text('INT8 model'), value: int8, onChanged: (v) => setState(() => int8 = v))),
+              Expanded(child: SwitchListTile(dense: true, title: const Text('HSRP plate'), value: hsrp, onChanged: (v) => setState(() => hsrp = v))),
+            ]),
+            Row(children: [
+              Expanded(child: FilledButton.icon(onPressed: busy || c == null ? null : _liveCapture, icon: const Icon(Icons.flash_on), label: const Text('Live capture + liveness'))),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(onPressed: busy ? null : _gallery, icon: const Icon(Icons.photo), label: const Text('Gallery')),
+            ]),
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text('Research build. The screen/print model did NOT flag a laptop-screen photo in testing. Plate and VIN use the dealer platform generic OCR (accuracy unmeasured).', style: TextStyle(fontSize: 11), textAlign: TextAlign.center),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Saves the capture (+ flash frame) with a ground-truth label to the app's external folder:
+/// Android/data/com.tieitup.vinplate_tester/files/dataset  (pull with adb or a file manager).
+Future<String> saveSample(Report r, String label, Backend backend) async {
+  final dir = Directory('${(await getExternalStorageDirectory())!.path}/dataset');
+  await dir.create(recursive: true);
+  final id = DateTime.now().toIso8601String().replaceAll(RegExp(r'[:.]'), '-');
+  await File('${dir.path}/${id}_$label.off.jpg').writeAsBytes(r.offBytes);
+  if (r.onBytes != null) await File('${dir.path}/${id}_$label.on.jpg').writeAsBytes(r.onBytes!);
+  await File('${dir.path}/${id}_$label.json').writeAsString(jsonEncode({
+    'label': label, // real | screen | print
+    'recapture_score': r.recaptureScore,
+    'flash_ratio': r.retro?.ratio,
+    'status': r.decision.status,
+    'backend': backend.name,
+    'model': r.model,
+    'size': [r.imageW, r.imageH],
+  }));
+  return dir.path;
+}
+
+class ResultPage extends StatelessWidget {
+  final Report r;
+  final Backend backend;
+  final String mode;
+  final Future<IdResult>? id; // null when the image was flagged: nothing is read from it
+  const ResultPage(this.r, this.backend, this.mode, this.id, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final d = r.decision;
+    final color = switch (d.status) { 'REJECT' => Colors.red.shade700, 'REVIEW' => Colors.orange.shade800, 'CANNOT VERIFY' => Colors.deepOrange.shade900, _ => Colors.blueGrey.shade600 };
+    Widget section(String t, List<String> items, {Color? c, IconData? icon}) => items.isEmpty
+        ? const SizedBox.shrink()
+        : Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(t, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            for (final s in items) Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon ?? Icons.circle, size: 14, color: c), const SizedBox(width: 8), Expanded(child: Text(s))])),
+          ])));
+    return Scaffold(
+      appBar: AppBar(title: const Text('Result')),
+      body: DefaultTabController(length: 3, initialIndex: mode == 'vin' ? 1 : 0, child: Column(children: [
+        Container(
+          width: double.infinity,
+          color: color,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Text('Image check: ${d.status}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+        const TabBar(tabs: [Tab(text: 'Number plate'), Tab(text: 'VIN'), Tab(text: 'Checks')]),
+        Expanded(child: TabBarView(children: [
+          OcrTab(r, id, 'plate'),
+          OcrTab(r, id, 'vin'),
+          ListView(padding: const EdgeInsets.all(12), children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+          child: Column(children: [
+            Text(d.status, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+            const Text('Only an affirmative flash-test pass earns "NO FLAGS", and even that does not prove the image is genuine. "CANNOT VERIFY" means the checks could not tell.', style: TextStyle(color: Colors.white70, fontSize: 12), textAlign: TextAlign.center),
+          ]),
+        ),
+        const SizedBox(height: 8),
+        section('ERRORS', d.errors, c: Colors.red, icon: Icons.error),
+        section('Affirmative evidence', d.positive, c: Colors.green, icon: Icons.check_circle),
+        section('Checks that did NOT run / inconclusive', d.notRun, c: Colors.grey, icon: Icons.remove_circle_outline),
+        section('Measurements', [
+          'image ${r.imageW}x${r.imageH}',
+          'regions: ${r.located}',
+          if (r.tamperScore != null) 'text-edit score ${r.tamperScore!.toStringAsFixed(3)} (EXPERIMENTAL, trained on SIMULATED edits, does not affect the verdict)',
+          if (r.recaptureScore != null) 'screen/print score ${r.recaptureScore!.toStringAsFixed(3)} (${r.model}; >=0.5 suspicious, >=0.9 strong)',
+          if (r.retro?.ratio != null) 'flash gain plate ${r.retro!.gainPlate!.toStringAsFixed(2)}x / surround ${r.retro!.gainSurround!.toStringAsFixed(2)}x = ratio ${r.retro!.ratio!.toStringAsFixed(2)} (need >= 2.5)',
+          'presentation-attack score ${d.paScore.toStringAsFixed(1)} (review >= 1, reject >= 3)',
+        ]),
+        section('Latency (4-patch screen/print check)', [
+          for (final t in r.timings)
+            '${t.backend == Backend.cpu ? 'CPU (XNNPACK)' : 'GPU/NPU (NNAPI)'}${t.backend == backend ? ' [used]' : ''}: '
+                '${t.error != null ? 'UNAVAILABLE - ${t.error}' : 'median ${fmtMs(t.medianMs)}, best ${fmtMs(t.minMs)}'}'
+        ]),
+        Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('What was this really? (saves the photo for training the model)', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, children: [
+            for (final l in const ['real', 'screen', 'print', 'tampered'])
+              FilledButton.tonal(
+                onPressed: () async {
+                  final m = ScaffoldMessenger.of(context);
+                  try {
+                    final path = await saveSample(r, l, backend);
+                    m.showSnackBar(SnackBar(content: Text('Saved as $l in $path')));
+                  } catch (e) {
+                    m.showSnackBar(SnackBar(backgroundColor: Colors.red.shade800, content: Text('Save failed: $e')));
+                  }
+                },
+                child: Text(l.toUpperCase()),
+              ),
+          ]),
+        ]))),
+        section('Metadata findings', [for (final f in r.provenance) '[${f.severity}] ${f.detail}']),
+      ]),
+        ])),
+      ])),
+    );
+  }
+}
+
+class OcrTab extends StatelessWidget {
+  final Report r;
+  final Future<IdResult>? id;
+  final String kind; // plate | vin
+  const OcrTab(this.r, this.id, this.kind, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final vin = kind == 'vin';
+    final title = vin ? 'VIN / chassis number' : 'Number plate';
+    if (id == null) {
+      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.block, size: 48, color: Colors.red),
+        const SizedBox(height: 12),
+        Text('$title reading BLOCKED', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        const Text('The image was flagged (see the Checks tab). Nothing is read from a flagged image.', textAlign: TextAlign.center),
+      ])));
+    }
+    return FutureBuilder<IdResult>(
+      future: id,
+      builder: (ctx, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), SizedBox(height: 12), Text('Reading text...')]));
+        }
+        if (snap.hasError) {
+          return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('OCR ERROR: ${snap.error}', style: const TextStyle(color: Colors.red))));
+        }
+        final o = snap.data!;
+        final String? value = vin ? o.vin?.value : o.plate?.display;
+        final double? conf = vin ? o.vin?.confidence : o.plate?.confidence;
+        final src = vin ? o.vin?.source : o.plate?.source;
+        return ListView(padding: const EdgeInsets.all(16), children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(border: Border.all(color: value == null ? Colors.grey : Colors.indigo, width: 2), borderRadius: BorderRadius.circular(8)),
+            child: Text(value ?? 'not found in this photo', style: TextStyle(fontSize: value == null ? 18 : 28, letterSpacing: 2, fontFamily: 'monospace', color: value == null ? Colors.grey : null)),
+          ),
+          const SizedBox(height: 8),
+          if (value != null) Text('OCR confidence ${((conf ?? 0) * 100).toStringAsFixed(0)}%   (from "$src")'),
+          if (vin && o.vin != null)
+            Text(o.vin!.checkDigitOk
+                ? 'ISO 3779 check digit: valid'
+                : 'ISO 3779 check digit: NOT valid (many Indian VINs do not carry one; not proof of a misread)'),
+          if (vin && o.vin != null && o.vin!.readLength != 17) Text('note: a ${o.vin!.readLength}-character run was trimmed to 17'),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            color: Colors.blueGrey.shade50,
+            child: const Text('Generic PP-OCR (PaddleOCR v3) + regex extractors: the same reader as the dealer platform. It is NOT the India-specific model and its accuracy is unmeasured. Check every reading by eye.', style: TextStyle(fontSize: 12)),
+          ),
+          const SizedBox(height: 12),
+          Text('All text found (${o.lines.length} lines, ${o.ms} ms)', style: const TextStyle(fontWeight: FontWeight.bold)),
+          for (final l in o.lines) Text('${l.text}   (${(l.confidence * 100).toStringAsFixed(0)}%)', style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+          if (o.lines.isEmpty) const Text('no text detected'),
+        ]);
+      },
+    );
+  }
+}

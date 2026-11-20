@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: vinplate
+Version: 0.2.0
+Summary: India-specific vehicle plate + VIN reading, authenticity and capture-quality pipeline
+Requires-Python: >=3.10
+Requires-Dist: numpy
+Requires-Dist: pillow
+Requires-Dist: scipy
+Requires-Dist: onnxruntime
+Provides-Extra: train
+Requires-Dist: torch; extra == "train"
+Requires-Dist: pyyaml; extra == "train"
+Requires-Dist: tqdm; extra == "train"
+Requires-Dist: fonttools; extra == "train"
+Requires-Dist: onnx; extra == "train"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"

@@ -1,0 +1,259 @@
+{
+ "capture_id": "8e3fc83c2759",
+ "processed_at": "2026-11-11T15:15:13",
+ "fields": {
+  "plate": {
+   "domain": "plate",
+   "status": "accept",
+   "value": "MH12AB1234",
+   "masked": "MH12AB1234",
+   "confidence": 0.997,
+   "char_confidence": [
+    1.0,
+    0.997,
+    0.98,
+    0.999,
+    0.996,
+    0.999,
+    1.0,
+    0.999,
+    1.0,
+    1.0
+   ],
+   "inferred": [],
+   "suspected_gaps": [],
+   "grammar_cost": 0.01,
+   "raw_read": "MH12AB1234",
+   "alternatives": [
+    {
+     "text": "MH12AB1234",
+     "p": 0.9966
+    },
+    {
+     "text": "MH2AB1234",
+     "p": 0.0013
+    },
+    {
+     "text": "MH12B1234",
+     "p": 0.0012
+    },
+    {
+     "text": "MH12A?1234",
+     "p": 0.0004
+    },
+    {
+     "text": "MH12AR1234",
+     "p": 0.0003
+    }
+   ],
+   "reasons": [],
+   "parsed": {
+    "layout": "standard",
+    "plate": "MH12AB1234",
+    "log_prior": 0.0,
+    "state_code": "MH",
+    "state_name": "Maharashtra",
+    "rto": "12",
+    "series": "AB",
+    "number": "1234",
+    "legacy_state_code": false,
+    "display": "MH 12 AB 1234"
+   },
+   "box": [
+    258,
+    256,
+    641,
+    316
+   ],
+   "quads": [
+    [
+     [
+      258.3,
+      256.2
+     ],
+     [
+      641.0,
+      256.2
+     ],
+     [
+      641.0,
+      315.2
+     ],
+     [
+      258.3,
+      315.2
+     ]
+    ]
+   ],
+   "image": 0,
+   "views": 1,
+   "rows": 1,
+   "evidence_chars": 10,
+   "quality": {
+    "ok": true,
+    "metrics": {
+     "height_px": 59.0,
+     "sharpness": 10.18,
+     "glare_frac": 0.0016,
+     "glare_blob": 0.0009,
+     "mean": 133.3,
+     "contrast": 0.898,
+     "dark_clipped": 0.0086
+    },
+    "issues": [],
+    "guidance": [],
+    "calibrated": false
+   },
+   "notes": [],
+   "calibrated": false,
+   "display": "MH 12 AB 1234",
+   "needs_review": false
+  },
+  "vin": null
+ },
+ "authenticity": {
+  "status": "review",
+  "liveness": "not_established",
+  "assurance": "none",
+  "reasons": [
+   "pixel forensics: ela_inconsistent ({'ela_inconsistency': 9.79, 'noise_inconsistency': 7.51, 'moire': 8.3, 'jpeg_grid_strength': 1.211, 'jpeg_grid_disagree': 0.917, 'jpeg_grid_phase_x': 1, 'jpeg_grid_phase_y': 0, 'chroma_moire': 9.84, 'banding': 3.63})",
+   "pixel forensics: noise_inconsistent ({'ela_inconsistency': 9.79, 'noise_inconsistency': 7.51, 'moire': 8.3, 'jpeg_grid_strength': 1.211, 'jpeg_grid_disagree': 0.917, 'jpeg_grid_phase_x': 1, 'jpeg_grid_phase_y': 0, 'chroma_moire': 9.84, 'banding': 3.63})",
+   "[0:plate.jpg] plate smaller than one native patch: recapture model judged the surrounding area",
+   "pixel-forensics flags by frame: 0:plate.jpg: ela_inconsistent, noise_inconsistent"
+  ],
+  "not_run": [
+   "tamper",
+   "ai_generated",
+   "retroreflection",
+   "planarity"
+  ],
+  "positive": [],
+  "pa_score": 0.0,
+  "per_frame": [
+   {
+    "index": 0,
+    "name": "0:plate.jpg",
+    "role": "primary",
+    "roi": [
+     258,
+     256,
+     641,
+     316
+    ],
+    "size": [
+     900,
+     560
+    ],
+    "provenance": {
+     "hard": [],
+     "soft": [],
+     "sha256": "9365b34edb180ad528b679f4dcd18636f037810401413f6a737281dcfc4d02f3",
+     "dhash": "00142bd4c4690400"
+    },
+    "forensics": {
+     "scores": {
+      "ela_inconsistency": 9.79,
+      "noise_inconsistency": 7.51,
+      "moire": 8.3,
+      "jpeg_grid_strength": 1.211,
+      "jpeg_grid_disagree": 0.917,
+      "jpeg_grid_phase_x": 1.0,
+      "jpeg_grid_phase_y": 0.0,
+      "chroma_moire": 9.84,
+      "banding": 3.63
+     },
+     "flags": [
+      "ela_inconsistent",
+      "noise_inconsistent"
+     ]
+    },
+    "recapture": 0.0,
+    "note": "plate smaller than one native patch: recapture model judged the surrounding area"
+   }
+  ],
+  "evidence": {
+   "provenance": {
+    "findings": [
+     {
+      "code": "no_camera_exif",
+      "severity": "info",
+      "detail": "[0:plate.jpg] no camera make/model in EXIF (stripped by a messenger/screenshot, or not a camera file)"
+     }
+    ],
+    "c2pa": {
+     "present": false,
+     "verified": null
+    },
+    "exif": {},
+    "sha256": "9365b34edb180ad528b679f4dcd18636f037810401413f6a737281dcfc4d02f3",
+    "dhash": "00142bd4c4690400"
+   },
+   "forensics": {
+    "scores": {
+     "ela_inconsistency": 9.79,
+     "noise_inconsistency": 7.51,
+     "moire": 8.3,
+     "jpeg_grid_strength": 1.211,
+     "jpeg_grid_disagree": 0.917,
+     "jpeg_grid_phase_x": 1,
+     "jpeg_grid_phase_y": 0,
+     "chroma_moire": 9.84,
+     "banding": 3.63
+    },
+    "flags": [
+     "ela_inconsistent",
+     "noise_inconsistent"
+    ],
+    "notes": [
+     "[0:plate.jpg] JPEG grid not visible (high-quality original, resized or re-encoded): grid-based checks uninformative"
+    ],
+    "calibrated": false
+   },
+   "active": {},
+   "liveness_basis": [],
+   "recapture_by_frame": {
+    "0:plate.jpg": 0.0
+   },
+   "planarity_by_frame": {},
+   "read_conflicts": [],
+   "not_run_reasons": {
+    "retroreflection": "no flash-on frame in the bundle",
+    "planarity": "no angle frames in the bundle"
+   },
+   "primary_frame": "0:plate.jpg",
+   "hsrp_expected": false,
+   "calibrated": false
+  }
+ },
+ "conflicts": [],
+ "images": [
+  {
+   "index": 0,
+   "name": "plate.jpg",
+   "role": "plate",
+   "taken_at": null,
+   "size": [
+    900,
+    560
+   ]
+  }
+ ],
+ "lines": [
+  {
+   "image": 0,
+   "text": "MH12AB1234",
+   "box": [
+    258,
+    256,
+    641,
+    316
+   ],
+   "detector_score": 0.995
+  }
+ ],
+ "timings_ms": {
+  "detect": 1681.2,
+  "recognise": 475.1,
+  "decode": 374.5
+ }
+}

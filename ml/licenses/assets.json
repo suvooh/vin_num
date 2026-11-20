@@ -1,0 +1,178 @@
+{
+  "_comment": "Non-pip components: runtimes, detector/forensics code, datasets, fonts. 'basis': V = verified this project by reading the licence/metadata; A = reported by the research agents who fetched the source (not re-checked by me); R = recalled, UNVERIFIED. Re-verify R and A items before relying on them.",
+  "runtimes": [
+    {
+      "name": "onnxruntime",
+      "license": "MIT",
+      "basis": "V",
+      "note": "CPU/XNNPACK, NNAPI, CoreML, QNN execution providers"
+    },
+    {
+      "name": "onnxruntime-qnn (wrapper)",
+      "license": "MIT",
+      "basis": "V"
+    },
+    {
+      "name": "Qualcomm QNN/HTP libraries bundled in onnxruntime-qnn",
+      "license": "proprietary",
+      "basis": "V",
+      "note": "Qualcomm AI Stack License: non-exclusive, non-transferable, REVOCABLE; redistribution only in object code embedded in your app, not standalone; no reverse engineering; $100 liability cap; auto-terminates on breach; export controls. Treat the NPU path as an optional accelerator with an open-licence CPU/GPU fallback. Legal review required."
+    }
+  ],
+  "code": [
+    {
+      "name": "Ultralytics YOLO (v5/v8/11)",
+      "license": "AGPL-3.0",
+      "basis": "A",
+      "verdict": "deny",
+      "note": "enterprise licence needed for closed commercial use"
+    },
+    {
+      "name": "YOLOX",
+      "license": "Apache-2.0",
+      "basis": "R",
+      "verdict": "allow"
+    },
+    {
+      "name": "RT-DETR / D-FINE",
+      "license": "Apache-2.0",
+      "basis": "R",
+      "verdict": "allow"
+    },
+    {
+      "name": "torchvision detection models (SSDLite, FCOS)",
+      "license": "BSD-3-Clause",
+      "basis": "R",
+      "verdict": "allow",
+      "note": "train from scratch: pretrained COCO/ImageNet weights carry their own data terms"
+    },
+    {
+      "name": "Community Forensics (AI-image detector)",
+      "license": "MIT",
+      "basis": "A",
+      "verdict": "allow",
+      "note": "code and weights MIT; 21.8M params, needs distillation for mobile"
+    },
+    {
+      "name": "UnivFD",
+      "license": "MIT",
+      "basis": "A",
+      "verdict": "allow",
+      "note": "needs CLIP ViT-L: too large for device"
+    },
+    {
+      "name": "PSCC-Net / IML-ViT (tamper localisation)",
+      "license": "MIT",
+      "basis": "A",
+      "verdict": "allow"
+    },
+    {
+      "name": "EVP (forgery)",
+      "license": "BSD-3-Clause",
+      "basis": "A",
+      "verdict": "allow"
+    },
+    {
+      "name": "NPR, C2P-CLIP, CAT-Net, MVSS-Net, ManTra-Net",
+      "license": "none stated",
+      "basis": "A",
+      "verdict": "deny",
+      "note": "no licence file = all rights reserved"
+    },
+    {
+      "name": "TruFor, B-Free",
+      "license": "non-commercial",
+      "basis": "A",
+      "verdict": "deny"
+    },
+    {
+      "name": "Stable Signature",
+      "license": "CC-BY-NC",
+      "basis": "A",
+      "verdict": "deny"
+    },
+    {
+      "name": "c2pa-python 0.38.0 / c2pa-rs",
+      "license": "MIT OR Apache-2.0",
+      "basis": "A",
+      "verdict": "allow"
+    },
+    {
+      "name": "Adobe TrustMark, Video Seal",
+      "license": "MIT",
+      "basis": "A",
+      "verdict": "allow"
+    },
+    {
+      "name": "PP-OCRv3 detector + recogniser weights (PaddleOCR; app/assets/models/ocr_det.onnx, ocr_rec.onnx, ocr_charset.txt)",
+      "license": "Apache-2.0",
+      "basis": "R",
+      "verdict": "review",
+      "note": "RECALLED, not verified here: PaddleOCR code and released models are Apache-2.0. Already shipped by the Flutter app and (as RapidOCR) by the old backend, so this adds no new exposure - but it IS an Apache-2.0 component on the reading path: if policy.json excludes Apache-2.0 it must be replaced (retrain the line recogniser from ml/training on synthetic + own captures). Also confirm with legal that the training-data terms of the published weights allow commercial use."
+    }
+  ],
+  "datasets": [
+    {
+      "name": "witvix/indian-truck-license-plates-sample",
+      "license": "CC-BY-NC-4.0",
+      "basis": "A",
+      "verdict": "deny",
+      "note": "evaluation inspiration only; commercial use needs a licence from the owner"
+    },
+    {
+      "name": "DataCluster Labs Indian number plates",
+      "license": "CC-BY-NC-ND-4.0 (HF) vs CC0 (Kaggle): conflicting",
+      "basis": "A",
+      "verdict": "deny",
+      "note": "get written confirmation"
+    },
+    {
+      "name": "Kaggle 'CC0' Indian plate sets",
+      "license": "uploader-asserted CC0 on scraped images",
+      "basis": "A",
+      "verdict": "review"
+    },
+    {
+      "name": "Open Images V7 (annotations CC-BY-4.0, images CC-BY-2.0)",
+      "license": "CC-BY",
+      "basis": "A",
+      "verdict": "review",
+      "note": "commercial OK with attribution; Google says verify per image; keep per-image licence + author"
+    },
+    {
+      "name": "keremberke/license-plate-object-detection",
+      "license": "CC-BY-4.0",
+      "basis": "A",
+      "verdict": "review",
+      "note": "global Roboflow mix, provenance unclear"
+    },
+    {
+      "name": "GenImage, Synthbuster, OpenFake, DocTamper, OSTF",
+      "license": "NC / NC-SA",
+      "basis": "A",
+      "verdict": "deny"
+    },
+    {
+      "name": "COCO images",
+      "license": "mixed Flickr licences incl. non-commercial",
+      "basis": "R",
+      "verdict": "deny",
+      "note": "do not train a commercial model on them"
+    },
+    {
+      "name": "Synthetic data generated by this repo",
+      "license": "owned (fonts OFL)",
+      "basis": "V",
+      "verdict": "allow"
+    }
+  ],
+  "fonts": [
+    {
+      "name": "all families in synth/fonts (Google Fonts, SIL OFL 1.1; OFL.txt shipped per family)",
+      "license": "OFL-1.1",
+      "basis": "V",
+      "verdict": "allow",
+      "note": "used to render training images only; no font software ships in the model"
+    }
+  ]
+}

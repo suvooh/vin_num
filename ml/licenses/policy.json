@@ -1,0 +1,7 @@
+{
+  "_comment": "Commercial-distribution policy for third-party components. Edit this file to change what the audit allows; nothing else needs to change. NOT legal advice - have counsel confirm.",
+  "allow": ["MIT", "MIT-CMU", "BSD", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "ISC", "HPND", "PSF", "Python-2.0", "Zlib", "Unlicense", "0BSD", "CC0-1.0", "OFL-1.1"],
+  "review": ["MPL-2.0", "LGPL", "EPL", "CC-BY-4.0", "CC-BY-2.0", "proprietary", "unknown"],
+  "deny": ["GPL", "AGPL", "SSPL", "CC-BY-NC", "CC-BY-NC-SA", "CC-BY-NC-ND", "non-commercial", "research-only", "Commons-Clause"],
+  "_note_apache": "Apache-2.0 is permissive and commercially usable (attribution + NOTICE + patent grant). It is in 'allow'. If your legal policy excludes it, move it to 'review' or 'deny' and re-run the audit to see exactly which dependencies are affected."
+}

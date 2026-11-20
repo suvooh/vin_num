@@ -1,0 +1,10 @@
+# torch comes from the pod's PyTorch template (do not reinstall it)
+numpy
+scipy
+pillow
+fonttools
+onnx
+onnxruntime
+pyyaml
+tqdm
+pytest
